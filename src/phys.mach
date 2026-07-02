@@ -1,0 +1,29 @@
+# phys.phys: public surface of mach-phys, the pure-mach 2D/3D physics library.
+#
+# implementation is intentionally sequenced behind mach's upcoming built-in
+# SIMD vector types (see README): the vector and matrix math this library needs
+# will be first-class language types, so no interim math shim is written. this
+# scaffold fixes the project identity and layout only.
+
+use std.runtime;
+
+# major version component of the mach-phys library.
+pub val VERSION_MAJOR: u32 = 0;
+# minor version component of the mach-phys library.
+pub val VERSION_MINOR: u32 = 0;
+# patch version component of the mach-phys library.
+pub val VERSION_PATCH: u32 = 0;
+
+# packed_version: the version components folded into one u32 as
+# (major << 16) | (minor << 8) | patch.
+pub fun packed_version() u32 {
+    ret (VERSION_MAJOR << 16) | (VERSION_MINOR << 8) | VERSION_PATCH;
+}
+
+test "phys: scaffold links and the packed version round-trips its components" {
+    val v: u32 = packed_version();
+    if ((v >> 16) != VERSION_MAJOR) { ret 1; }
+    if (((v >> 8) & 0xFF) != VERSION_MINOR) { ret 1; }
+    if ((v & 0xFF) != VERSION_PATCH) { ret 1; }
+    ret 0;
+}
