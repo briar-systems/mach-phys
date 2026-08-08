@@ -1,0 +1,133 @@
+# Rigid bodies and their axis-aligned bounds.
+#
+# A body is a point mass with an AABB half-extent. Rotation is not modelled,
+# because AABBs do not rotate and orientation would be state that nothing
+# reads. Adding oriented shapes later means adding a shape tag to Body, not
+# changing the world.
+
+use std.runtime;
+use std.types.bool.bool;
+use std.types.bool.true;
+use std.types.bool.false;
+use phys.vec.Vec3;
+use phys.vec.vec3;
+use phys.vec.zero3;
+use phys.vec.min3;
+use phys.vec.max3;
+
+# Marks a body that never moves and is never pushed.
+pub val STATIC: f32 = 0.0;
+
+# A rigid body.
+#
+# Mass is stored inverted. A static body has inv_mass 0, which drops out of the
+# impulse arithmetic without a branch, and division never appears in the step.
+# ---
+# position:    Centre of the AABB.
+# velocity:    Metres per second.
+# half:        Half-extents of the AABB.
+# inv_mass:    1/mass, or 0 for a static body.
+# restitution: Bounce. 0 is fully damped, 1 is fully elastic.
+# active:      Whether the world steps this slot.
+pub rec Body {
+    position:    Vec3;
+    velocity:    Vec3;
+    half:        Vec3;
+    inv_mass:    f32;
+    restitution: f32;
+    active:      bool;
+}
+
+# Create a dynamic body of the given mass.
+pub fun body_dynamic(position: Vec3, half: Vec3, mass: f32) Body {
+    var b: Body;
+    b.position    = position;
+    b.velocity    = zero3();
+    b.half        = half;
+    b.inv_mass    = 0.0;
+    if (mass > 0.0) { b.inv_mass = 1.0 / mass; }
+    b.restitution = 0.0;
+    b.active      = true;
+    ret b;
+}
+
+# Create a body that never moves.
+pub fun body_static(position: Vec3, half: Vec3) Body {
+    var b: Body;
+    b.position    = position;
+    b.velocity    = zero3();
+    b.half        = half;
+    b.inv_mass    = STATIC;
+    b.restitution = 0.0;
+    b.active      = true;
+    ret b;
+}
+
+# Whether a body responds to forces.
+pub fun is_dynamic(b: *Body) bool {
+    ret b.inv_mass > 0.0;
+}
+
+# Lowest corner of the body's AABB.
+pub fun aabb_min(b: *Body) Vec3 {
+    ret b.position - b.half;
+}
+
+# Highest corner of the body's AABB.
+pub fun aabb_max(b: *Body) Vec3 {
+    ret b.position + b.half;
+}
+
+# Whether two AABBs overlap on all three axes.
+#
+# Exact touching is not an overlap. Bodies resting in contact would otherwise
+# generate a collision every step and jitter.
+pub fun overlaps(a: *Body, b: *Body) bool {
+    val amin: Vec3 = aabb_min(a);
+    val amax: Vec3 = aabb_max(a);
+    val bmin: Vec3 = aabb_min(b);
+    val bmax: Vec3 = aabb_max(b);
+    if (amax[0] <= bmin[0] || amin[0] >= bmax[0]) { ret false; }
+    if (amax[1] <= bmin[1] || amin[1] >= bmax[1]) { ret false; }
+    if (amax[2] <= bmin[2] || amin[2] >= bmax[2]) { ret false; }
+    ret true;
+}
+
+test "body: a static body has zero inverse mass" {
+    var s: Body = body_static(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+    if (is_dynamic(?s))    { ret 1; }
+    if (s.inv_mass != 0.0) { ret 1; }
+
+    var d: Body = body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 2.0);
+    if (!is_dynamic(?d))   { ret 1; }
+    if (d.inv_mass != 0.5) { ret 1; }
+    ret 0;
+}
+
+test "body: zero or negative mass is treated as static" {
+    var z: Body = body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 0.0);
+    if (is_dynamic(?z)) { ret 1; }
+    ret 0;
+}
+
+test "body: bounds follow position and half-extents" {
+    var b: Body = body_dynamic(vec3(5.0, 0.0, 0.0), vec3(2.0, 1.0, 1.0), 1.0);
+    if (aabb_min(?b)[0] != 3.0) { ret 1; }
+    if (aabb_max(?b)[0] != 7.0) { ret 1; }
+    ret 0;
+}
+
+test "body: overlap requires all three axes and excludes touching" {
+    var a: Body = body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0);
+    var b: Body = body_dynamic(vec3(1.5, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0);
+    if (!overlaps(?a, ?b)) { ret 1; }
+
+    # Separated on a single axis is still separated.
+    var c: Body = body_dynamic(vec3(1.5, 9.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0);
+    if (overlaps(?a, ?c)) { ret 1; }
+
+    # Exactly touching. Resting contact must not fire a collision every step.
+    var t: Body = body_dynamic(vec3(2.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0);
+    if (overlaps(?a, ?t)) { ret 1; }
+    ret 0;
+}
