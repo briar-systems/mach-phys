@@ -1,0 +1,331 @@
+# The simulation: integration, broad phase, and impulse resolution.
+#
+# A fixed body table, stepped at a fixed dt supplied by the caller. The step
+# integrates, then detects, then resolves, in that order, so every contact is
+# found against the same set of positions.
+#
+# The broad phase is all-pairs, O(n^2) over the active bodies. At this table
+# size that is a few thousand comparisons per step, cheaper than the
+# bookkeeping a grid or BVH would add. `collect_contacts` is the only function
+# that enumerates pairs, so it is the seam a better broad phase replaces.
+
+use std.runtime;
+use std.types.bool.bool;
+use std.types.bool.true;
+use std.types.bool.false;
+use std.types.size.usize;
+use phys.vec.Vec3;
+use phys.vec.vec3;
+use phys.vec.zero3;
+use phys.vec.scale3;
+use phys.vec.dot3;
+use phys.body.Body;
+use phys.body.aabb_min;
+use phys.body.aabb_max;
+use phys.body.overlaps;
+use phys.body.is_dynamic;
+use phys.body.body_dynamic;
+use phys.body.body_static;
+
+# Maximum number of bodies in a world.
+pub val MAX_BODIES: usize = 256;
+# Maximum number of contacts one step may report.
+pub val MAX_CONTACTS: usize = 512;
+
+# A body's index in the world, biased so that 0 is never a valid id.
+pub def BodyId: usize;
+# The id that no body has.
+pub val NO_BODY: BodyId = 0;
+
+# One collision found during a step.
+# ---
+# a, b:   The colliding bodies.
+# normal: Unit axis pointing from a to b.
+# depth:  Overlap along the normal, in metres.
+pub rec Contact {
+    a:      BodyId;
+    b:      BodyId;
+    normal: Vec3;
+    depth:  f32;
+}
+
+# The simulation state.
+# ---
+# gravity:       Acceleration applied to dynamic bodies each step.
+# bodies:        The body table.
+# used:          Whether a slot holds a body.
+# count:         High-water mark of slots ever used.
+# contacts:      Collisions found by the most recent step.
+# contact_count: How many of those contacts are valid.
+pub rec World {
+    gravity:       Vec3;
+    bodies:        [256]Body;
+    used:          [256]bool;
+    count:         usize;
+    contacts:      [512]Contact;
+    contact_count: usize;
+}
+
+# Create an empty world under the given gravity.
+pub fun world_new(gravity: Vec3) World {
+    var w: World;
+    w.gravity       = gravity;
+    w.count         = 0;
+    w.contact_count = 0;
+    var i: usize = 0;
+    for (i < MAX_BODIES) { w.used[i] = false; i = i + 1; }
+    ret w;
+}
+
+# Add a body. Returns its id, or NO_BODY when the table is full.
+pub fun world_add(w: *World, b: Body) BodyId {
+    var i: usize = 0;
+    for (i < w.count) {
+        if (!w.used[i]) {
+            w.bodies[i] = b;
+            w.used[i]   = true;
+            ret (i + 1)::BodyId;
+        }
+        i = i + 1;
+    }
+    if (w.count >= MAX_BODIES) { ret NO_BODY; }
+    val s: usize = w.count;
+    w.bodies[s] = b;
+    w.used[s]   = true;
+    w.count     = w.count + 1;
+    ret (s + 1)::BodyId;
+}
+
+# Remove a body.
+pub fun world_remove(w: *World, id: BodyId) bool {
+    if (id == NO_BODY || id::usize > w.count) { ret false; }
+    val i: usize = id::usize - 1;
+    if (!w.used[i]) { ret false; }
+    w.used[i] = false;
+    ret true;
+}
+
+# The body behind an id, or nil if the id is invalid.
+pub fun world_body(w: *World, id: BodyId) *Body {
+    if (id == NO_BODY || id::usize > w.count) { ret nil; }
+    val i: usize = id::usize - 1;
+    if (!w.used[i]) { ret nil; }
+    ret ?w.bodies[i];
+}
+
+# Apply gravity and advance positions.
+#
+# Semi-implicit Euler: velocity is integrated before position, so the position
+# update uses the new velocity. Explicit Euler, using the old velocity, injects
+# energy and makes a bouncing body climb.
+fun integrate(w: *World, dt: f32) {
+    var i: usize = 0;
+    for (i < w.count) {
+        if (w.used[i] && is_dynamic(?w.bodies[i])) {
+            w.bodies[i].velocity = w.bodies[i].velocity + scale3(w.gravity, dt);
+            w.bodies[i].position = w.bodies[i].position + scale3(w.bodies[i].velocity, dt);
+        }
+        i = i + 1;
+    }
+}
+
+# The axis of least penetration between two overlapping AABBs, and its depth.
+#
+# The separating axis with the smallest overlap is the one to push along.
+# Pushing along a deeper axis moves a body further than the contact requires,
+# which can shove it through a neighbouring body.
+fun contact_axis(a: *Body, b: *Body, normal: *Vec3, depth: *f32) {
+    val amin: Vec3 = aabb_min(a);
+    val amax: Vec3 = aabb_max(a);
+    val bmin: Vec3 = aabb_min(b);
+    val bmax: Vec3 = aabb_max(b);
+
+    # Unrolled because a vector lane index must be a comptime constant.
+    var ox: f32 = amax[0] - bmin[0];
+    var sx: f32 = 1.0;
+    if ((bmax[0] - amin[0]) < ox) { ox = bmax[0] - amin[0]; sx = -1.0; }
+
+    var oy: f32 = amax[1] - bmin[1];
+    var sy: f32 = 1.0;
+    if ((bmax[1] - amin[1]) < oy) { oy = bmax[1] - amin[1]; sy = -1.0; }
+
+    var oz: f32 = amax[2] - bmin[2];
+    var sz: f32 = 1.0;
+    if ((bmax[2] - amin[2]) < oz) { oz = bmax[2] - amin[2]; sz = -1.0; }
+
+    if (ox <= oy && ox <= oz) {
+        @normal = vec3(sx, 0.0, 0.0);
+        @depth  = ox;
+    }
+    or (oy <= oz) {
+        @normal = vec3(0.0, sy, 0.0);
+        @depth  = oy;
+    }
+    or {
+        @normal = vec3(0.0, 0.0, sz);
+        @depth  = oz;
+    }
+}
+
+# Find every overlapping pair.
+#
+# The only place pairs are enumerated, so a grid or BVH replaces this function
+# and nothing else.
+fun collect_contacts(w: *World) {
+    w.contact_count = 0;
+    var i: usize = 0;
+    for (i < w.count) {
+        if (!w.used[i]) { i = i + 1; }
+        or {
+            var j: usize = i + 1;
+            for (j < w.count) {
+                if (w.used[j] && w.contact_count < MAX_CONTACTS) {
+                    # Two static bodies can never resolve, so pairing them is
+                    # work with no possible effect.
+                    if (is_dynamic(?w.bodies[i]) || is_dynamic(?w.bodies[j])) {
+                        if (overlaps(?w.bodies[i], ?w.bodies[j])) {
+                            var n: Vec3 = zero3();
+                            var d: f32  = 0.0;
+                            contact_axis(?w.bodies[i], ?w.bodies[j], ?n, ?d);
+                            w.contacts[w.contact_count].a      = (i + 1)::BodyId;
+                            w.contacts[w.contact_count].b      = (j + 1)::BodyId;
+                            w.contacts[w.contact_count].normal = n;
+                            w.contacts[w.contact_count].depth  = d;
+                            w.contact_count = w.contact_count + 1;
+                        }
+                    }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+}
+
+# Separate overlapping bodies and apply the collision impulse.
+fun resolve(w: *World) {
+    var c: usize = 0;
+    for (c < w.contact_count) {
+        val ia: usize = w.contacts[c].a::usize - 1;
+        val ib: usize = w.contacts[c].b::usize - 1;
+        val n:  Vec3  = w.contacts[c].normal;
+
+        val inv_a: f32 = w.bodies[ia].inv_mass;
+        val inv_b: f32 = w.bodies[ib].inv_mass;
+        val total: f32 = inv_a + inv_b;
+        if (total <= 0.0) { c = c + 1; }
+        or {
+            # Positional correction shares the overlap by inverse mass, so a
+            # light body moves further than a heavy one, and a static body not
+            # at all.
+            val corr: Vec3 = scale3(n, w.contacts[c].depth / total);
+            w.bodies[ia].position = w.bodies[ia].position - scale3(corr, inv_a);
+            w.bodies[ib].position = w.bodies[ib].position + scale3(corr, inv_b);
+
+            val rel: Vec3 = w.bodies[ib].velocity - w.bodies[ia].velocity;
+            val sep: f32  = dot3(rel, n);
+
+            # Already separating. An impulse here would pull them back
+            # together.
+            if (sep > 0.0) { c = c + 1; }
+            or {
+                var e: f32 = w.bodies[ia].restitution;
+                if (w.bodies[ib].restitution < e) { e = w.bodies[ib].restitution; }
+
+                val jm: f32  = -(1.0 + e) * sep / total;
+                val imp: Vec3 = scale3(n, jm);
+                w.bodies[ia].velocity = w.bodies[ia].velocity - scale3(imp, inv_a);
+                w.bodies[ib].velocity = w.bodies[ib].velocity + scale3(imp, inv_b);
+                c = c + 1;
+            }
+        }
+    }
+}
+
+# Advance the simulation by one fixed step.
+#
+# dt must be the caller's fixed timestep. A variable dt makes integration
+# frame-rate dependent, which is how a game's physics ends up behaving
+# differently on a faster machine.
+pub fun world_step(w: *World, dt: f32) {
+    integrate(w, dt);
+    collect_contacts(w);
+    resolve(w);
+}
+
+test "world: add, look up, and remove" {
+    var w: World = world_new(vec3(0.0, -9.81, 0.0));
+    val id: BodyId = world_add(?w, body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
+    if (id == NO_BODY)             { ret 1; }
+    if (world_body(?w, id) == nil) { ret 1; }
+    if (!world_remove(?w, id))     { ret 1; }
+    if (world_body(?w, id) != nil) { ret 1; }
+    # A second remove is refused rather than double-freeing the slot.
+    if (world_remove(?w, id))      { ret 1; }
+    ret 0;
+}
+
+test "world: gravity accelerates a dynamic body and not a static one" {
+    var w: World = world_new(vec3(0.0, -10.0, 0.0));
+    val d: BodyId = world_add(?w, body_dynamic(vec3(0.0, 100.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
+    val s: BodyId = world_add(?w, body_static(vec3(50.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)));
+
+    world_step(?w, 0.1);
+    if (world_body(?w, d).velocity[1] != -1.0) { ret 1; }
+    # Semi-implicit: position uses the new velocity, so it moves -0.1, not 0.
+    if (world_body(?w, d).position[1] != 99.9) { ret 1; }
+    if (world_body(?w, s).velocity[1] != 0.0)  { ret 1; }
+    if (world_body(?w, s).position[1] != 0.0)  { ret 1; }
+    ret 0;
+}
+
+test "world: a falling body rests on static ground rather than passing through" {
+    var w: World = world_new(vec3(0.0, -10.0, 0.0));
+    world_add(?w, body_static(vec3(0.0, 0.0, 0.0), vec3(10.0, 1.0, 10.0)));
+    val b: BodyId = world_add(?w, body_dynamic(vec3(0.0, 5.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
+
+    var n: usize = 0;
+    for (n < 200) { world_step(?w, 1.0 / 60.0); n = n + 1; }
+
+    # Ground top is y=1 and the box half-height is 1, so it rests at y=2.
+    val y: f32 = world_body(?w, b).position[1];
+    if (y < 1.9 || y > 2.1) { ret 1; }
+    ret 0;
+}
+
+test "world: the contact normal is the axis of least penetration" {
+    var w: World = world_new(vec3(0.0, 0.0, 0.0));
+    # Deeply overlapped on y, barely on x, so the push must be along x.
+    world_add(?w, body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 5.0, 1.0), 1.0));
+    world_add(?w, body_dynamic(vec3(1.9, 0.0, 0.0), vec3(1.0, 5.0, 1.0), 1.0));
+
+    world_step(?w, 0.016);
+    if (w.contact_count != 1) { ret 1; }
+    if (w.contacts[0].normal[0] == 0.0) { ret 1; }
+    if (w.contacts[0].normal[1] != 0.0) { ret 1; }
+    ret 0;
+}
+
+test "world: two static bodies produce no contact" {
+    var w: World = world_new(vec3(0.0, 0.0, 0.0));
+    world_add(?w, body_static(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)));
+    world_add(?w, body_static(vec3(0.5, 0.0, 0.0), vec3(1.0, 1.0, 1.0)));
+    world_step(?w, 0.016);
+    if (w.contact_count != 0) { ret 1; }
+    ret 0;
+}
+
+test "world: a heavier body is pushed less than a lighter one" {
+    var w: World = world_new(vec3(0.0, 0.0, 0.0));
+    val light: BodyId = world_add(?w, body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
+    val heavy: BodyId = world_add(?w, body_dynamic(vec3(1.5, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 10.0));
+
+    val lx0: f32 = world_body(?w, light).position[0];
+    val hx0: f32 = world_body(?w, heavy).position[0];
+    world_step(?w, 0.016);
+
+    val ld: f32 = lx0 - world_body(?w, light).position[0];
+    val hd: f32 = world_body(?w, heavy).position[0] - hx0;
+    if (ld <= hd) { ret 1; }
+    ret 0;
+}
