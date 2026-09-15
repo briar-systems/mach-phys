@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- builds with Mach 5.0 and std 2.1. The dependency is `[dep.std]`, pinned by the
+  committed `dep/std` gitlink, and `mach.lock` is gone.
+
 ## [0.2.0] - 2026-08-07
 
 First working simulation. The scaffold deferred implementation behind Mach's
