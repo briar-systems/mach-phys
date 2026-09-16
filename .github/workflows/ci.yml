@@ -27,7 +27,7 @@ jobs:
           mach info
 
       - name: Sync dependencies
-        run: mach dep pull
+        run: mach dep pull .
 
       - name: Build
         run: mach build .
@@ -51,7 +51,7 @@ jobs:
           mach info
 
       - name: Sync dependencies
-        run: mach dep pull
+        run: mach dep pull .
 
       - name: Test
         run: mach test .
