@@ -5,15 +5,15 @@
 # reads. Adding oriented shapes later means adding a shape tag to Body, not
 # changing the world.
 
-use std.runtime;
-use std.types.bool.bool;
-use std.types.bool.true;
-use std.types.bool.false;
 use phys.vec.Vec3;
+use phys.vec.max3;
+use phys.vec.min3;
 use phys.vec.vec3;
 use phys.vec.zero3;
-use phys.vec.min3;
-use phys.vec.max3;
+use std.runtime;
+use std.types.bool.bool;
+use std.types.bool.false;
+use std.types.bool.true;
 
 # Marks a body that never moves and is never pushed.
 pub val STATIC: f32 = 0.0;
@@ -41,10 +41,10 @@ pub rec Body {
 # Create a dynamic body of the given mass.
 pub fun body_dynamic(position: Vec3, half: Vec3, mass: f32) Body {
     var b: Body;
-    b.position    = position;
-    b.velocity    = zero3();
-    b.half        = half;
-    b.inv_mass    = 0.0;
+    b.position = position;
+    b.velocity = zero3();
+    b.half     = half;
+    b.inv_mass = 0.0;
     if (mass > 0.0) { b.inv_mass = 1.0 / mass; }
     b.restitution = 0.0;
     b.active      = true;

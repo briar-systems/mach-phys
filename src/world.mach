@@ -9,23 +9,23 @@
 # bookkeeping a grid or BVH would add. `collect_contacts` is the only function
 # that enumerates pairs, so it is the seam a better broad phase replaces.
 
-use std.runtime;
-use std.types.bool.bool;
-use std.types.bool.true;
-use std.types.bool.false;
-use std.types.size.usize;
-use phys.vec.Vec3;
-use phys.vec.vec3;
-use phys.vec.zero3;
-use phys.vec.scale3;
-use phys.vec.dot3;
 use phys.body.Body;
-use phys.body.aabb_min;
 use phys.body.aabb_max;
-use phys.body.overlaps;
-use phys.body.is_dynamic;
+use phys.body.aabb_min;
 use phys.body.body_dynamic;
 use phys.body.body_static;
+use phys.body.is_dynamic;
+use phys.body.overlaps;
+use phys.vec.Vec3;
+use phys.vec.dot3;
+use phys.vec.scale3;
+use phys.vec.vec3;
+use phys.vec.zero3;
+use std.runtime;
+use std.types.bool.bool;
+use std.types.bool.false;
+use std.types.bool.true;
+use std.types.size.usize;
 
 # Maximum number of bodies in a world.
 pub val MAX_BODIES: usize = 256;
@@ -73,7 +73,10 @@ pub fun world_new(gravity: Vec3) World {
     w.count         = 0;
     w.contact_count = 0;
     var i: usize = 0;
-    for (i < MAX_BODIES) { w.used[i] = false; i = i + 1; }
+    for (i < MAX_BODIES) {
+        w.used[i] = false;
+        i         = i + 1;
+    }
     ret w;
 }
 
@@ -143,15 +146,24 @@ fun contact_axis(a: *Body, b: *Body, normal: *Vec3, depth: *f32) {
     # Unrolled because a vector lane index must be a comptime constant.
     var ox: f32 = amax[0] - bmin[0];
     var sx: f32 = 1.0;
-    if ((bmax[0] - amin[0]) < ox) { ox = bmax[0] - amin[0]; sx = -1.0; }
+    if ((bmax[0] - amin[0]) < ox) {
+        ox = bmax[0] - amin[0];
+        sx = -1.0;
+    }
 
     var oy: f32 = amax[1] - bmin[1];
     var sy: f32 = 1.0;
-    if ((bmax[1] - amin[1]) < oy) { oy = bmax[1] - amin[1]; sy = -1.0; }
+    if ((bmax[1] - amin[1]) < oy) {
+        oy = bmax[1] - amin[1];
+        sy = -1.0;
+    }
 
     var oz: f32 = amax[2] - bmin[2];
     var sz: f32 = 1.0;
-    if ((bmax[2] - amin[2]) < oz) { oz = bmax[2] - amin[2]; sz = -1.0; }
+    if ((bmax[2] - amin[2]) < oz) {
+        oz = bmax[2] - amin[2];
+        sz = -1.0;
+    }
 
     if (ox <= oy && ox <= oz) {
         @normal = vec3(sx, 0.0, 0.0);
@@ -191,7 +203,7 @@ fun collect_contacts(w: *World) {
                             w.contacts[w.contact_count].b      = (j + 1)::BodyId;
                             w.contacts[w.contact_count].normal = n;
                             w.contacts[w.contact_count].depth  = d;
-                            w.contact_count = w.contact_count + 1;
+                            w.contact_count                    = w.contact_count + 1;
                         }
                     }
                 }
@@ -232,11 +244,11 @@ fun resolve(w: *World) {
                 var e: f32 = w.bodies[ia].restitution;
                 if (w.bodies[ib].restitution < e) { e = w.bodies[ib].restitution; }
 
-                val jm: f32  = -(1.0 + e) * sep / total;
+                val jm:  f32  = -(1.0 + e) * sep / total;
                 val imp: Vec3 = scale3(n, jm);
                 w.bodies[ia].velocity = w.bodies[ia].velocity - scale3(imp, inv_a);
                 w.bodies[ib].velocity = w.bodies[ib].velocity + scale3(imp, inv_b);
-                c = c + 1;
+                c                     = c + 1;
             }
         }
     }
@@ -254,19 +266,19 @@ pub fun world_step(w: *World, dt: f32) {
 }
 
 test "world: add, look up, and remove" {
-    var w: World = world_new(vec3(0.0, -9.81, 0.0));
+    var w:  World  = world_new(vec3(0.0, -9.81, 0.0));
     val id: BodyId = world_add(?w, body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
     if (id == NO_BODY)             { ret 1; }
     if (world_body(?w, id) == nil) { ret 1; }
     if (!world_remove(?w, id))     { ret 1; }
     if (world_body(?w, id) != nil) { ret 1; }
     # A second remove is refused rather than double-freeing the slot.
-    if (world_remove(?w, id))      { ret 1; }
+    if (world_remove(?w, id)) { ret 1; }
     ret 0;
 }
 
 test "world: gravity accelerates a dynamic body and not a static one" {
-    var w: World = world_new(vec3(0.0, -10.0, 0.0));
+    var w: World  = world_new(vec3(0.0, -10.0, 0.0));
     val d: BodyId = world_add(?w, body_dynamic(vec3(0.0, 100.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
     val s: BodyId = world_add(?w, body_static(vec3(50.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0)));
 
@@ -285,7 +297,10 @@ test "world: a falling body rests on static ground rather than passing through" 
     val b: BodyId = world_add(?w, body_dynamic(vec3(0.0, 5.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
 
     var n: usize = 0;
-    for (n < 200) { world_step(?w, 1.0 / 60.0); n = n + 1; }
+    for (n < 200) {
+        world_step(?w, 1.0 / 60.0);
+        n = n + 1;
+    }
 
     # Ground top is y=1 and the box half-height is 1, so it rests at y=2.
     val y: f32 = world_body(?w, b).position[1];
@@ -300,7 +315,7 @@ test "world: the contact normal is the axis of least penetration" {
     world_add(?w, body_dynamic(vec3(1.9, 0.0, 0.0), vec3(1.0, 5.0, 1.0), 1.0));
 
     world_step(?w, 0.016);
-    if (w.contact_count != 1) { ret 1; }
+    if (w.contact_count != 1)           { ret 1; }
     if (w.contacts[0].normal[0] == 0.0) { ret 1; }
     if (w.contacts[0].normal[1] != 0.0) { ret 1; }
     ret 0;
@@ -316,7 +331,7 @@ test "world: two static bodies produce no contact" {
 }
 
 test "world: a heavier body is pushed less than a lighter one" {
-    var w: World = world_new(vec3(0.0, 0.0, 0.0));
+    var w:     World  = world_new(vec3(0.0, 0.0, 0.0));
     val light: BodyId = world_add(?w, body_dynamic(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 1.0));
     val heavy: BodyId = world_add(?w, body_dynamic(vec3(1.5, 0.0, 0.0), vec3(1.0, 1.0, 1.0), 10.0));
 

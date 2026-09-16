@@ -29,8 +29,8 @@ pub fun packed_version() u32 {
 
 test "phys: scaffold links and the packed version round-trips its components" {
     val v: u32 = packed_version();
-    if ((v >> 16) != VERSION_MAJOR) { ret 1; }
+    if ((v >> 16) != VERSION_MAJOR)         { ret 1; }
     if (((v >> 8) & 0xFF) != VERSION_MINOR) { ret 1; }
-    if ((v & 0xFF) != VERSION_PATCH) { ret 1; }
+    if ((v & 0xFF) != VERSION_PATCH)        { ret 1; }
     ret 0;
 }
