@@ -34,3 +34,8 @@ test "phys: scaffold links and the packed version round-trips its components" {
     if ((v & 0xFF) != VERSION_PATCH)        { ret 1; }
     ret 0;
 }
+
+# counterfactual: must fail CI
+test "counterfactual: ci must go red" {
+    ret 1;
+}
