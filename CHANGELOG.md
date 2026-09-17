@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-16
+
 ### Changed
 - deps: std moves to `tag/v4.0.0`, which requires mach 5.2.0 or later. phys uses none of the names 4.0.0 removed, so no source changes were needed.
 
