@@ -6,12 +6,20 @@ dimension-generic core, and only the genuinely dimension-specific pieces are
 written twice. Project id is `phys`, so consumers reach everything as `phys.*`.
 
 Consuming projects vendor it as a normal Mach dependency. It links nothing and
-forces no `libs` on consumers — the whole library is pure algorithms.
+adds no `link` entries to consumers — the whole library is pure algorithms. Add
+it with `mach dep add`, which declares the dependency at a caret range over the
+newest compatible release and realizes it:
+
+```sh
+mach dep add . phys --git https://github.com/briar-systems/mach-phys
+```
+
+That writes this stanza to `mach.toml`:
 
 ```toml
-[deps.mach-phys]
+[dep.phys]
 git = "https://github.com/briar-systems/mach-phys"
-ref = "branch/main"
+version = "^0.4.0"
 ```
 
 > **Status: scaffold.** Implementation is intentionally sequenced behind
@@ -86,6 +94,9 @@ resolves to `phys.mach` and reaches the whole API as `phys.*`.
 ## Tests
 
 `test` blocks live beside the code they cover and are display-free, run by
-`mach test .`. CI fetches the latest released Mach compiler, syncs
-dependencies, and runs both `mach build .` and `mach test .` on every pull
-request into `dev` and `main`.
+`mach test .`. CI runs the family `mach-lib` workflow on Mach 5.12.0, pinned
+in `.github/workflows/ci.yml` until the family pin moves. It pulls the committed
+dependency pins, checks formatting, and builds and tests in the debug and
+release profiles. A pull request into `dev` runs x86_64-linux, and a pull
+request into `main` or a release tag also runs aarch64-linux, x86_64-windows,
+x86_64-darwin and aarch64-darwin.
