@@ -48,7 +48,7 @@ float_reassoc = false
 
 [artifact.phys]
 kind    = "static"
-entry   = "phys.mach"
+entry   = "lib/phys.mach"
 out     = "lib/phys"
 targets = ["*"]
 link    = []
