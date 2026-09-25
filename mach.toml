@@ -1,6 +1,6 @@
 [project]
 id      = "phys"
-version = "0.4.1"
+version = "0.4.2"
 mach    = "^5.12"
 src     = "src"
 out     = "out/{target.name}/{profile.name}"
@@ -48,7 +48,7 @@ float_reassoc = false
 
 [artifact.phys]
 kind    = "static"
-entry   = "phys.mach"
+entry   = "lib/phys.mach"
 out     = "lib/phys"
 targets = ["*"]
 link    = []

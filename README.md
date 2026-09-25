@@ -83,13 +83,17 @@ compiler's target support rather than from anything in this repository.
 
 ```
 src/
-  phys.mach    library surface (phys.phys): the public entry point
+  lib/
+    phys.mach  library surface (phys.lib.phys): the phys artifact's entry
+  vec.mach     3D vector math over f32x4
+  body.mach    rigid bodies and their axis-aligned bounds
+  world.mach   the simulation: integration, broad phase, impulse resolution
 ```
 
 The module tree will grow along the design above — a shared core plus
 per-dimension narrowphase and rotational-dynamics modules — as the
 SIMD-backed implementation lands. The surface stays flat: a bare `use phys;`
-resolves to `phys.mach` and reaches the whole API as `phys.*`.
+resolves to `lib/phys.mach` and reaches the whole API as `phys.*`.
 
 ## Tests
 
