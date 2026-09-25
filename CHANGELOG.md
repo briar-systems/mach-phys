@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-25
+
+### Changed
+- **Breaking: builds against std 8.0.0 and requires mach 5.12** (#33). `[dep.std]` moves from the exact `ref = "tag/v4.0.0"` to the range `version = "^8.0"`, realized to v8.0.0 by the committed `dep/std` gitlink, and `[project].mach` rises from `^5.3` to `^5.12`, which std 8 requires. Resolution is flat, so a consumer of phys must move to std 8 and mach 5.12 with it, and must rebuild anything that links std rather than only recompiling against the new sources. A range instead of an exact tag means a root on a later std 8 minor no longer conflicts with phys. No source change was needed across std 5, 6, 7 and 8: phys imports only `std.runtime` and `std.types`, which none of them reshaped. Every module that holds a test is reached from `phys.mach`, so mach 5.12's closure-scoped `mach test .` (briar-systems/mach#3813) still collects all 13 tests on every target.
+- ci: the lib job seeds mach v5.12.0 until the family pin moves (briar-systems/.github#103) (#33).
+- manifest: declares the compiler range `mach = "^5.3"`, so mach 5.3 and later no longer warn on every build.
+- license: copyright is attributed to Briar Systems LLC.
+- ci: releases publish through the family release workflow (`briar-systems/.github` `mach-release.yml`). Pushing a `v*` tag verifies the tag against the manifest and changelog, runs the full CI tier and publishes the GitHub release.
+
 ## [0.3.1] - 2026-09-16
 
 ### Changed
