@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-25
+
+### Fixed
+- The README adds the library with `mach dep add` and shows the stanza it writes: `[dep.phys]` at `version = "^0.4.0"`, where it showed the invalid `[deps.mach-phys]` key at `ref = "branch/main"`. It also describes the CI the repo runs today (#32).
+
 ## [0.4.0] - 2026-09-25
 
 ### Changed
