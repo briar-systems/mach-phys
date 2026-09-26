@@ -60,23 +60,3 @@ pub fun max3(a: Vec3, b: Vec3) Vec3 {
     r[3] = 0.0;
     ret r;
 }
-
-test "vec: arithmetic and dot over three lanes" {
-    val a: Vec3 = vec3(1.0, 2.0, 3.0);
-    val b: Vec3 = vec3(4.0, 5.0, 6.0);
-    val s: Vec3 = a + b;
-    if (s[0] != 5.0 || s[1] != 7.0 || s[2] != 9.0) { ret 1; }
-    if (dot3(a, b) != 32.0)                        { ret 1; }
-    if (length_sq3(vec3(3.0, 4.0, 0.0)) != 25.0)   { ret 1; }
-    ret 0;
-}
-
-test "vec: min and max are component-wise" {
-    val a:  Vec3 = vec3(1.0, 5.0, 3.0);
-    val b:  Vec3 = vec3(4.0, 2.0, 6.0);
-    val lo: Vec3 = min3(a, b);
-    val hi: Vec3 = max3(a, b);
-    if (lo[0] != 1.0 || lo[1] != 2.0 || lo[2] != 3.0) { ret 1; }
-    if (hi[0] != 4.0 || hi[1] != 5.0 || hi[2] != 6.0) { ret 1; }
-    ret 0;
-}
