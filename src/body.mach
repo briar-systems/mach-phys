@@ -6,8 +6,6 @@
 # changing the world.
 
 use phys.vec.Vec3;
-use phys.vec.max3;
-use phys.vec.min3;
 use phys.vec.vec3;
 use phys.vec.zero3;
 use std.runtime;
