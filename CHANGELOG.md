@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-26
+
+### Changed
+- **Breaking: requires mach 6 and builds against std 9.0.0** (#44). `[project].mach` moves from `^5.12` to `^6` and `[dep.std]` from `^8.0` to `^9.0`, realized to v9.0.0 by the committed `dep/std` gitlink. Resolution is flat, so a consumer of phys must move to mach 6 and std 9 with it. The public API is unchanged. CI seeds mach v6.0.0.
+- Tests are named with identifiers (`subject__case`) and pruned to the test policy (#44), from 13 to 8. The static and non-positive mass checks fold into `body_dynamic__inv_mass`, and the packed-version, vec arithmetic, min/max and AABB bounds tests are dropped. `body.mach` no longer imports the unused `min3` and `max3`.
+- readme: The dependency stanza declares `version = "^0.5.0"`, and the Tests section names the mach 6.0.0 CI pin.
+
 ## [0.4.2] - 2026-09-25
 
 ### Changed

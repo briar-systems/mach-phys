@@ -19,7 +19,7 @@ That writes this stanza to `mach.toml`:
 ```toml
 [dep.phys]
 git = "https://github.com/briar-systems/mach-phys"
-version = "^0.4.0"
+version = "^0.5.0"
 ```
 
 > **Status: scaffold.** Implementation is intentionally sequenced behind
