@@ -98,8 +98,8 @@ resolves to `lib/phys.mach` and reaches the whole API as `phys.*`.
 ## Tests
 
 `test` blocks live beside the code they cover and are display-free, run by
-`mach test .`. CI runs the family `mach-lib` workflow on Mach 5.12.0, pinned
-in `.github/workflows/ci.yml` until the family pin moves. It pulls the committed
+`mach test .`. CI runs the family `mach-lib` workflow on Mach 6.0.0, pinned
+in `.github/workflows/ci.yml`. It pulls the committed
 dependency pins, checks formatting, and builds and tests in the debug and
 release profiles. A pull request into `dev` runs x86_64-linux, and a pull
 request into `main` or a release tag also runs aarch64-linux, x86_64-windows,
